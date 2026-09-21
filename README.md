@@ -2,8 +2,7 @@
 
 Sends Telegram alerts for two things, both run by GitHub Actions:
 
-1. **Watchlist** (every ~10 minutes): new open issues in repos you choose
-   (default: tscircuit). Issues that are already taken are hidden, so an alert
+1. **Watchlist** (every ~10 minutes): new open issues in repos you choose. Issues that are already taken are hidden, so an alert
    means there is still something you can grab.
 2. **Discovery** (weekly, Mondays): issues and repo files elsewhere on GitHub
    that suggest paid work, ranked by how direct the evidence is.
@@ -15,7 +14,7 @@ Edit `watchlist.json`:
 | Key | Meaning |
 |---|---|
 | `repos` | `owner/repo` list to watch |
-| `orgs` | Watch every active repo in these orgs, e.g. `["tscircuit"]` (see below) |
+| `orgs` | Watch every active repo in these orgs. |
 | `org_repo_limit` | Max repos per org, most recently pushed first (default 30) |
 | `lookback_days` | Only issues created in this window (default 2) |
 | `max_comments` | Skip threads with more comments than this (default 25) |
@@ -36,11 +35,6 @@ it"), so it can miss unusual wording. Read the issue before you start.
 
 No keyword filter is applied to the watchlist. Everything in your watched
 repos is shown.
-
-**Watching a whole org:** tscircuit has 200+ repos. Adding `"orgs": ["tscircuit"]`
-covers the 30 most recently pushed. Each repo costs API calls every run, so
-with 10-minute runs, stay under about 30 repos. Authenticated requests get
-5,000 per hour, and each run uses roughly (repos + a few) calls.
 
 ## Discovery
 
