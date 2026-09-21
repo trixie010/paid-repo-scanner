@@ -1,0 +1,17 @@
+{
+  "repos": [
+    "tscircuit/core",
+    "tscircuit/footprinter",
+    "tscircuit/schematic-symbols",
+    "tscircuit/circuit-to-svg",
+    "tscircuit/cli",
+    "tscircuit/tscircuit.com"
+  ],
+  "orgs": [],
+  "org_repo_limit": 30,
+  "lookback_days": 2,
+  "max_issues_per_repo": 30,
+  "max_comments": 25,
+  "skip_labels": ["wontfix", "duplicate", "invalid"],
+  "hide_states": ["assigned", "has-pr"]
+}
