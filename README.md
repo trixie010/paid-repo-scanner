@@ -2,7 +2,8 @@
 
 Sends Telegram alerts for two things, both run by GitHub Actions:
 
-1. **Watchlist** (every ~10 minutes): new open issues in repos you choose. Issues that are already taken are hidden, so an alert
+1. **Watchlist** (every ~10 minutes): new open issues in repos you choose
+   (default: tscircuit). Issues that are already taken are hidden, so an alert
    means there is still something you can grab.
 2. **Discovery** (weekly, Mondays): issues and repo files elsewhere on GitHub
    that suggest paid work, ranked by how direct the evidence is.
@@ -14,7 +15,7 @@ Edit `watchlist.json`:
 | Key | Meaning |
 |---|---|
 | `repos` | `owner/repo` list to watch |
-| `orgs` | Watch every active repo in these orgs. |
+| `orgs` | Watch every active repo in these orgs, e.g. `["tscircuit"]` (see below) |
 | `org_repo_limit` | Max repos per org, most recently pushed first (default 30) |
 | `lookback_days` | Only issues created in this window (default 2) |
 | `max_comments` | Skip threads with more comments than this (default 25) |
@@ -36,25 +37,39 @@ it"), so it can miss unusual wording. Read the issue before you start.
 No keyword filter is applied to the watchlist. Everything in your watched
 repos is shown.
 
+**Watching a whole org:** tscircuit has 200+ repos. Adding `"orgs": ["tscircuit"]`
+covers the 30 most recently pushed. Each repo costs API calls every run, so
+with 10-minute runs, stay under about 30 repos. Authenticated requests get
+5,000 per hour, and each run uses roughly (repos + a few) calls.
+
 ## Discovery
 
 Runs weekly (Mondays). Looks for paid work **anywhere on GitHub**, using two
 sources merged into one ranked list.
 
-**Issues** created in the last few days that have a bounty, reward, `paid` or
-points label (like `200 points`), a program label (`drips-wave`), a dollar
-amount, or a named payout platform.
+**Issues** created in the last few days with a bounty label, a points label
+(like `200 points`), a program label (`drips-wave`), a dollar amount, or a named
+payout platform. A bare `paid` or `reward` label is **not** enough on its own:
+those mean paid-plan features and in-game rewards in many repos. They only count
+when backed by a dollar amount or a payout platform.
 
-**Files**: `CONTRIBUTING.md` and `README.md` text that links merged work to
-payment, for example "contributors are paid via GitHub Sponsors". Code search
-finds candidates, then the scanner reads the actual file and checks the wording.
+**Files**: `CONTRIBUTING.md` and `README.md` wording where **the project** says it
+pays contributors, for example "contributors are paid via GitHub Sponsors" or "we
+run a bounty program". The text is read **one sentence at a time**, and a sentence
+is thrown out if the payer is not the project. Rejected shapes include:
+
+- "if you are contributing as part of paid work" (your employer pays)
+- "bug reports from paying customers" (customers pay)
+- "pay attention to your issues" (the verb, not money)
+- "not automatically paid", "please don't contribute just for bounties" (negations)
+- "legal issues regarding the bounties" (about liability, not payment)
 
 Each result shows a tier, why it matched, the matching sentence, and the payout
 channel:
 
 | Tier | Meaning |
 |---|---|
-| A | A direct claim ("we pay contributors for merged PRs") or money/points on an issue |
+| A | The project says it pays contributors, or money/points sit on an issue |
 | B | A payout platform is named, or a dollar amount sits near contribution wording |
 | C | A `FUNDING.yml` only. Accepts donations, not proof of payouts |
 
@@ -63,13 +78,18 @@ Gitcoin, Bountysource, Open Collective, IssueHunt. Drips is flagged
 "ID/KYC likely needed", because Drips Wave asks contributors to verify identity
 before withdrawing. Check that before spending time on any program.
 
+**One entry per repo.** If a repo has 50 matching issues you get one entry saying
+"+49 more issues", not 50 lines. At most `MAX_RESULTS` repos (default 12) are
+shown per message, and the rest are **held for the next run, not lost**.
+
 **Skipped:** pull requests, assigned issues, crowded threads, repos named like
 bounty trackers, archived/forked/idle repos, and a short off-topic blocklist
 (casino, airdrop, referral, article writing). Edit `BLOCKLIST` in
 `scanner/discovery.py`. It is a plain substring match, so remove a word if it
 blocks something real.
 
-**What it cannot do:** a repo saying it pays contributors is a claim, not proof.
+**What it cannot do:** a repo saying it pays contributors is a claim, not proof. Some hits will
+be crypto or token projects, and the scanner cannot tell whether a bounty there is real money.
 Ask whether anyone has actually been paid. The wording patterns are fuzzy: they
 will miss unusual phrasing and occasionally match a sentence that means
 something else. Tell me what slips through and the patterns can be tuned.
@@ -78,6 +98,17 @@ something else. Tell me what slips through and the patterns can be tuned.
 requests a minute, only indexes some files, and needs authentication. The scan
 waits between queries and checks at most 25 repos per run, so results are
 partial. Set `SKIP_FILE_SEARCH=1` to run the issue source only.
+
+## If you already ran an older version
+
+Older versions marked results as seen even when they were never shown, and had
+noisier matching. Replace `data/seen.json` with:
+
+```json
+{"discovery": {}, "watchlist": {}}
+```
+
+(this zip already ships that), commit it, and the next run starts fresh.
 
 ## Setup
 

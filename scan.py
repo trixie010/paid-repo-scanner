@@ -27,13 +27,14 @@ def run_watchlist(state):
 
 def run_discovery(state):
     items = discovery.collect(state)
-    print(f"Discovery: {len(items)} candidate issues")
+    print(f"Discovery: {len(items)} candidates")
     if not items:
         return
-    shown = items[: discovery.MAX_RESULTS]
-    if notify.notify(discovery.format_message(items), "Discovery: possible paid work"):
-        for it in items:                  # overflow is recorded too, not re-sent
-            state.mark("discovery", it["key"])
+    entries, shown_keys, hidden = discovery.group(items)
+    if notify.notify(discovery.format_message(entries, hidden), "Discovery: possible paid work"):
+        for k in shown_keys:              # only what you actually received
+            state.mark("discovery", k)
+        print(f"Sent {len(entries)} repos, {hidden} held for next run")
     else:
         print("[warn] not delivered, will retry next run")
 

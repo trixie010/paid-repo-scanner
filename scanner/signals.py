@@ -26,22 +26,57 @@ PLATFORMS = {
 }
 
 # ------------------------------------------------------------ text patterns
-# A contribution word within ~80 characters of a payment word, either order.
+# Words that mean "someone did work on the project"
 CONTRIB = (
     r"(?:merged?|contribut\w*|pull requests?|\bPRs?\b|patch(?:es)?|fix(?:es|ed)?|"
     r"issues?|bugs?|commits?)"
 )
-# Unambiguous payment words. "funded" and "sponsored" are left out on purpose:
-# they describe a bug or a company as often as a payout.
-PAYMENT = (
-    r"(?:paid|pays?|paying|payments?|payouts?|rewarded?|rewards?|monetary|"
-    r"compensat\w*|remunerat\w*|earn(?:s|ed)?\s+(?:a\s+)?(?:share|money|cash)|"
-    r"bount(?:y|ies)|stipends?|honorari\w*)"
-)
-# Not preceded/followed by "." or "_" so filenames like rewards.md do not match
-PAY_NEAR = re.compile(
-    rf"({CONTRIB}[^.\n]{{0,80}}?(?<![\w.]){PAYMENT}(?![\w]|\.\w)"
-    rf"|(?<![\w.]){PAYMENT}(?![\w]|\.\w)[^.\n]{{0,80}}?{CONTRIB})",
+
+# The PROJECT must be the payer. These patterns describe the project paying
+# contributors, and they are checked one SENTENCE at a time.
+PROJECT_PAYS = [
+    # "we pay contributors", "we reward merged PRs", "we offer bounties/rewards"
+    re.compile(r"\bwe\s+(?:will\s+|do\s+|also\s+)?(?:pay|reward|compensate|sponsor|fund|offer|award)\b"
+               r"[^.\n]{0,60}?\b(?:contribut\w*|pull requests?|\bPRs?\b|patch(?:es)?|fix(?:es)?|"
+               r"bugs?|issues?|work|bount(?:y|ies)|rewards?|money|payments?|stipends?)", re.I),
+    # "contributors are/get/will be paid|rewarded|compensated"
+    re.compile(r"\b(?:contributors?|contributions?|merged (?:pull requests?|PRs?)|"
+               r"pull requests?|\bPRs?\b|maintainers?)\s+(?:\w+\s+){0,3}?"
+               r"(?:are|is|get|gets|will be|can be|may be|receive[sd]?)\s+"
+               r"(?:\w+\s+){0,2}?(?:paid|rewarded|compensated|remunerated|eligible for (?:payment|a reward|rewards?))\b", re.I),
+    # "paid contributors", "paid bounties", "bounty program", "bounty board"
+    re.compile(r"\bpaid\s+(?:contributors?|bount(?:y|ies)|bounty program)\b"
+               r"|\bbounty\s+(?:program|board|programme|pool|hunters?)\b"
+               r"|\bbounties\s+(?:are|is)\s+(?:paid|available|offered|posted)\b", re.I),
+    # "paid via/through GitHub Sponsors|Open Collective|Algora ..."
+    re.compile(r"\b(?:paid|payouts?|payments?|rewards?|bounties)\s+(?:are\s+|is\s+)?(?:made\s+)?"
+               r"(?:via|through|using|from|by)\s+(?:github sponsors|opencollective|open collective|"
+               r"algora|opire|polar|drips|gitcoin|paypal|stripe|usdc|crypto)\b", re.I),
+    # "merged PRs earn a share of the pool", "contributors earn money"
+    re.compile(r"\b(?:contributors?|contributions?|merged (?:pull requests?|PRs?)|pull requests?|\bPRs?\b)\s+"
+               r"(?:\w+\s+){0,2}?earns?\s+(?:a\s+)?(?:share|money|cash|payment|rewards?)\b", re.I),
+    # "bug fixes / patches / PRs are compensated|paid|rewarded"
+    re.compile(r"\b(?:bug fix(?:es)?|fix(?:es)?|patch(?:es)?|features?|documentation|docs)\s+"
+               r"(?:\w+\s+){0,2}?(?:are|is|get|will be)\s+(?:\w+\s+){0,2}?"
+               r"(?:paid|rewarded|compensated|remunerated)\b", re.I),
+    # "payments/payouts are made to contributors"
+    re.compile(r"\b(?:payments?|payouts?|rewards?)\s+(?:are\s+|is\s+|will be\s+)?(?:made|sent|issued|given)\s+to\s+"
+               r"(?:contributors?|authors?|developers?|maintainers?)\b", re.I),
+    # "monetary rewards", "cash rewards", "monthly payout"
+    re.compile(r"\b(?:monetary|cash|financial)\s+(?:rewards?|compensation|payouts?|incentives?)\b"
+               r"|\b(?:monthly|weekly)\s+payouts?\b|\bpaid\s+(?:automatically|monthly|weekly|on merge)\b", re.I),
+]
+
+# Sentences where a payment word appears but the project is NOT paying
+FALSE_POSITIVE = re.compile(
+    r"(paid work|paid to (?:make|contribute|work)|being paid|are paid to|if you(?:'re| are) paid|"
+    r"on behalf of|your employer|employer|your company|paying customers?|customers? (?:who )?pay|"
+    r"pay(?:ing)? attention|pay it forward|pay respect|pay (?:close|special|particular) |"
+    r"paid (?:plan|tier|version|feature|subscription|license)|"
+    r"\bnot\b[^.\n]{0,50}\b(?:paid|payment|bount|reward)|\bno\s+(?:payment|pay|bount|reward)|"
+    r"\bdon'?t\b[^.\n]{0,60}\bbount|\bwithout\s+(?:payment|pay)\b|"
+    r"legal (?:issues|liabilit|responsib)|not (?:automatically|guaranteed)|"
+    r"paid adoption|\brewards?\.md\b|\bpaid contribution schemes?\b(?!\s*[\w]+\s+are))",
     re.I,
 )
 
@@ -61,7 +96,11 @@ DONATION_ONLY = re.compile(
 
 # "N points" style labels, and program labels
 POINTS_LABEL = re.compile(r"\b\d+\s*[- ]?points?\b", re.I)
-PROGRAM_LABEL = re.compile(r"bounty|reward|paid|funded|drips-?wave|stellar wave|💎|💰", re.I)
+# Only labels that unambiguously mean "money is attached". Bare "paid" and
+# "reward" are deliberately excluded: they mean paid-plan features and in-game
+# rewards in many repos.
+STRONG_LABEL = re.compile(r"bount(?:y|ies)|drips-?wave|stellar wave|💎|💰|\bfunded\b|\bcash\b", re.I)
+WEAK_LABEL = re.compile(r"^(?:paid|reward|rewards?)$", re.I)
 MONEY = re.compile(r"\$\s?\d[\d,]*(\.\d+)?|\b\d[\d,]*\s?(usd|usdc|dollars)\b", re.I)
 
 
@@ -70,42 +109,65 @@ def detect_platforms(text):
     return [(name, kyc) for name, (rx, kyc) in PLATFORMS.items() if rx.search(text or "")]
 
 
-def snippet(text, match, width=70):
-    s = max(0, match.start() - 10)
-    e = min(len(text), match.end() + 10)
-    out = " ".join(text[s:e].split())
-    return out[: width * 2]
+_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+|\s*[*\u2022]\s+|\s*#+\s+")
+
+
+def sentences(text):
+    """Split markdown-ish text into clean sentences (no links, no code)."""
+    text = re.sub(r"```.*?```", " ", text or "", flags=re.S)
+    text = re.sub(r"`[^`]*`", " ", text)
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)      # keep link text only
+    text = re.sub(r"<[^>]+>", " ", text)
+    out = []
+    for part in _SENT_SPLIT.split(text):
+        part = " ".join(part.split())
+        if 15 <= len(part) <= 400:
+            out.append(part)
+    return out
+
+
+def snippet(text, match=None, width=200):
+    """Return readable text cut on word boundaries."""
+    t = " ".join((text or "").split())
+    if len(t) <= width:
+        return t
+    cut = t[:width].rsplit(" ", 1)[0]
+    return cut + "..."
 
 
 def classify_text(text):
-    """Classify README/CONTRIBUTING-style text.
+    """Classify README/CONTRIBUTING-style text, one sentence at a time.
 
+    A sentence counts only if it matches a "project pays" pattern and is not a
+    known false-positive shape (employer pays, customers pay, negations, idioms).
     Returns dict(tier, reason, snippet, platforms) or None.
     """
     if not text:
         return None
     platforms = detect_platforms(text)
 
-    m = PAY_NEAR.search(text)
-    if m:
-        # Skip when the matching sentence is a plain donation ask
-        sentence = snippet(text, m, width=120)
-        if not DONATION_ONLY.search(sentence):
-            return {"tier": "A", "reason": "text links contributions to payment",
-                    "snippet": sentence, "platforms": platforms}
+    for sent in sentences(text):
+        if FALSE_POSITIVE.search(sent) or DONATION_ONLY.search(sent):
+            continue
+        if any(rx.search(sent) for rx in PROJECT_PAYS):
+            return {"tier": "A", "reason": "project says it pays contributors",
+                    "snippet": snippet(sent), "platforms": platforms}
 
     # A bare dollar amount near contribution words is weaker: it also matches
     # pricing pages, so it is ranked B and never A.
-    m = MONEY_NEAR.search(text)
-    if m:
-        return {"tier": "B", "reason": "dollar amount near contribution wording",
-                "snippet": snippet(text, m, width=120), "platforms": platforms}
+    for sent in sentences(text):
+        if FALSE_POSITIVE.search(sent) or DONATION_ONLY.search(sent):
+            continue
+        if MONEY_NEAR.search(sent):
+            return {"tier": "B", "reason": "dollar amount near contribution wording",
+                    "snippet": snippet(sent), "platforms": platforms}
 
     if platforms:
         names = ", ".join(n for n, _ in platforms)
-        first = next(iter(PLATFORMS[platforms[0][0]][0].finditer(text)), None)
+        first = next((sn for sn in sentences(text)
+                      if any(PLATFORMS[n][0].search(sn) for n, _ in platforms)), "")
         return {"tier": "B", "reason": f"names payout platform: {names}",
-                "snippet": snippet(text, first) if first else "", "platforms": platforms}
+                "snippet": snippet(first), "platforms": platforms}
     return None
 
 
@@ -113,20 +175,30 @@ def classify_issue(item):
     """Classify a GitHub issue dict from the search API.
 
     Returns dict(tier, reason, snippet, platforms) or None.
+    A bare "paid" or "reward" label is not enough on its own: those labels mean
+    paid-plan features or in-game rewards in many repos. They only count when
+    backed by a dollar amount or a named payout platform.
     """
     labels = [l["name"] for l in item.get("labels", [])]
     text = f"{item.get('title', '')}\n{item.get('body', '') or ''}"
     label_blob = " | ".join(labels)
     platforms = detect_platforms(f"{text}\n{label_blob}")
+    money = MONEY.search(text)
 
-    if any(POINTS_LABEL.search(l) for l in labels) or any(PROGRAM_LABEL.search(l) for l in labels):
-        which = next((l for l in labels if POINTS_LABEL.search(l) or PROGRAM_LABEL.search(l)), "")
-        return {"tier": "A", "reason": f"label: {which}", "snippet": "", "platforms": platforms}
+    strong = next((l for l in labels if POINTS_LABEL.search(l) or STRONG_LABEL.search(l)), None)
+    if strong:
+        return {"tier": "A", "reason": f"label: {strong}", "snippet": "", "platforms": platforms}
 
-    m = MONEY.search(text)
-    if m:
-        return {"tier": "A", "reason": f"amount: {m.group(0)}",
-                "snippet": snippet(text, m), "platforms": platforms}
+    weak = next((l for l in labels if WEAK_LABEL.match(l.strip())), None)
+    if weak and (money or platforms):
+        why = f"amount: {money.group(0)}" if money else "named payout platform"
+        return {"tier": "A", "reason": f"label: {weak} + {why}",
+                "snippet": "", "platforms": platforms}
+
+    if money:
+        return {"tier": "A", "reason": f"amount: {money.group(0)}",
+                "snippet": snippet(text[max(0, money.start() - 40): money.end() + 60]),
+                "platforms": platforms}
 
     if platforms:
         names = ", ".join(n for n, _ in platforms)

@@ -22,7 +22,8 @@ from datetime import datetime, timedelta, timezone
 from . import github, signals
 
 MAX_COMMENTS = int(os.environ.get("MAX_COMMENTS", "25"))
-MAX_RESULTS = int(os.environ.get("MAX_RESULTS", "12"))
+MAX_RESULTS = int(os.environ.get("MAX_RESULTS", "12"))          # entries per message
+PER_REPO_CAP = int(os.environ.get("PER_REPO_CAP", "3"))          # issues shown per repo
 LOOKBACK_DAYS = int(os.environ.get("DISCOVERY_LOOKBACK_DAYS", "3"))
 MIN_STARS = int(os.environ.get("MIN_STARS", "5"))
 MAX_IDLE_DAYS = int(os.environ.get("MAX_IDLE_DAYS", "60"))
@@ -169,24 +170,54 @@ def collect(state):
     return items
 
 
-def format_message(items):
+def group(items):
+    """Collapse to one entry per repo so one project cannot flood the alert.
+
+    Returns (entries, shown_keys). Every item in a collapsed entry counts as
+    shown, because the entry reports how many there were. Only entries beyond
+    MAX_RESULTS are left unshown, and those stay unseen so they arrive next time.
+    """
+    by_repo, order = {}, []
+    for it in items:
+        if it["repo"] not in by_repo:
+            by_repo[it["repo"]] = []
+            order.append(it["repo"])
+        by_repo[it["repo"]].append(it)
+
+    entries = []
+    for repo in order:
+        group_items = by_repo[repo]
+        head = dict(group_items[0])
+        head["count"] = len(group_items)
+        head["extra_titles"] = [g["title"] for g in group_items[1:PER_REPO_CAP]]
+        head["keys"] = [g["key"] for g in group_items]
+        entries.append(head)
+
+    shown = entries[:MAX_RESULTS]
+    shown_keys = [k for e in shown for k in e["keys"]]
+    return shown, shown_keys, len(entries) - len(shown)
+
+
+def format_message(entries, hidden=0):
     lines = ["<b>Discovery: possible paid work</b>", "A strong claim · B named platform · C donations only", ""]
-    for it in items[:MAX_RESULTS]:
-        e = html.escape
+    e = html.escape
+    for it in entries:
         head = f'<b>{it["tier"]}</b> <a href="{e(it["url"])}">{e(it["repo"])}</a>'
         if it["kind"] == "issue":
             meta = f'💬 {it["comments"]} · {e(it["title"][:80])}'
         else:
-            age = it["age_days"]
-            new = "🆕 " if age < NEW_REPO_DAYS else ""
+            new = "🆕 " if it["age_days"] < NEW_REPO_DAYS else ""
             meta = f'{new}⭐ {it["stars"]} · in {e(it["file"])}'
         lines.append(f"{head}\n    {meta}")
+        if it.get("count", 1) > 1:
+            more = it["count"] - 1
+            lines.append(f"    +{more} more issue{'s' if more > 1 else ''} in this repo")
         lines.append(f"    why: {e(it['reason'])}")
         if it.get("snippet"):
-            lines.append(f"    “{e(it['snippet'][:160])}”")
+            lines.append(f"    “{e(it['snippet'][:220])}”")
         lines.append(f"    {e(signals.channel_line(it['platforms']))}")
         lines.append("")
-    if len(items) > MAX_RESULTS:
-        lines.append(f"...and {len(items) - MAX_RESULTS} more.")
+    if hidden > 0:
+        lines.append(f"...and {hidden} more repos, coming in the next run.")
     lines.append("Hints, not proof. Confirm a program really pays before investing time.")
     return "\n".join(lines)

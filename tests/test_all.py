@@ -127,10 +127,48 @@ def mk_issue(labels=(), title="t", body=""):
     return {"title": title, "body": body, "labels": [{"name": l} for l in labels]}
 assert signals.classify_issue(mk_issue(["200 points", "Stellar Wave"]))["tier"] == "A"
 assert signals.classify_issue(mk_issue(["bounty"]))["tier"] == "A"
+assert signals.classify_issue(mk_issue(["paid"], "Button field")) is None, "bare 'paid' label is a product tier"
+assert signals.classify_issue(mk_issue(["reward"], "It pays coins")) is None, "bare 'reward' label is in-game"
+assert signals.classify_issue(mk_issue(["paid"], body="Reward: $150"))["tier"] == "A"
 assert signals.classify_issue(mk_issue(body="Reward: $150"))["tier"] == "A"
 assert signals.classify_issue(mk_issue(body="see https://algora.io/x"))["tier"] == "B"
 assert signals.classify_issue(mk_issue(labels=["bug"], body="it crashes")) is None
 ok("signals: issue labels/points/amount -> A, platform link -> B, plain bug -> none")
+
+# ---- regression: real false positives seen in a live Telegram alert
+REAL_FP = [
+  "If you are contributing as part of paid work, a written agreement from your employer may be needed.",
+  "Anything that makes your paid work easier, please contribute to the project.",
+  "If you are being paid to make a contribution on behalf of your employer, please say so.",
+  "Bug reports from paying customers are prioritised.",
+  "Pay attention to your issues and follow up on them.",
+  "Please don't contribute if you are not using the product and are just here for bounties, thank you.",
+  "A merged documentation PR is not automatically paid adoption.",
+  "You are responsible for any legal issues regarding the bounties.",
+]
+for t in REAL_FP:
+    r = signals.classify_text(t)
+    assert not (r and r["tier"] == "A"), f"REGRESSION, live false positive: {t}"
+ok(f"regression: {len(REAL_FP)} live false positives stay rejected")
+
+MORE_TP = [
+  "Merged pull requests earn a share of our sponsorship pool.",
+  "Bug fixes are compensated based on complexity.",
+  "Payments are made to contributors through GitHub Sponsors.",
+  "We run a bounty program for security fixes.",
+  "Bounties are paid via Algora when the pull request is merged.",
+  "We offer cash rewards for accepted bug fixes.",
+]
+for t in MORE_TP:
+    r = signals.classify_text(t)
+    assert r and r["tier"] == "A", f"true positive lost: {t}"
+ok(f"regression: {len(MORE_TP)} real payment claims still detected")
+
+snip = signals.classify_text("We pay contributors for every accepted fix that lands in the main branch of the repository.")["snippet"]
+assert not snip.startswith(("f you", "akes")) and (snip.endswith("...") or snip.endswith("repository."))
+long = signals.snippet("word " * 100, width=50)
+assert long.endswith("...") and not long[:-3].endswith("wor"), "snippets must cut on word boundaries"
+ok("regression: snippets cut on word boundaries")
 
 # ------------------------------------------------------------- discovery
 def disc(n, title, repo="acme/app", body="", labels=(), comments=0, **kw):
@@ -147,6 +185,8 @@ ISS = {
   "crowded":  disc(7, "x", labels=["bounty"], comments=30),
   "meta":     disc(8, "x", repo="me/bounty-watch", labels=["bounty"]),
   "casino":   disc(9, "casino airdrop $500", labels=["bounty"]),
+  "coins":    disc(10, "pays coins in game", labels=["reward"]),
+  "product":  disc(11, "Button field", labels=["paid"]),
 }
 def fake_search(url, params=None, headers=None):
     if url.endswith("/search/issues"): return {"items": list(ISS.values())}
@@ -166,10 +206,31 @@ st2.mark("discovery", ISS["points"]["html_url"])
 assert "1" not in {i["url"].rsplit("/", 1)[1] for i in discovery.collect(st2)}
 ok("discovery: seen issues are not repeated, dedupe is by issue URL")
 
-msg = discovery.format_message(items)
+entries, shown_keys, hidden = discovery.group(items)
+msg = discovery.format_message(entries, hidden)
 assert "why:" in msg and "channel:" in msg and "Hints, not proof" in msg
 assert "KYC" in msg, "Drips/Stellar Wave issue should carry the KYC note"
 ok("discovery: alert shows reason, payout channel and KYC note")
+
+
+# ---- grouping: one repo cannot flood the alert, and unseen overflow is kept
+many = [dict(key=f"https://github.com/flood/repo/issues/{n}", kind="issue", tier="A", repo="flood/repo",
+             url=f"https://github.com/flood/repo/issues/{n}", title=f"Task {n}", comments=0,
+             created_at=iso(1), reason="label: bounty", snippet="", platforms=[]) for n in range(50)]
+others = [dict(key=f"https://github.com/r{n}/x/issues/1", kind="issue", tier="B", repo=f"r{n}/x",
+               url=f"https://github.com/r{n}/x/issues/1", title="t", comments=0, created_at=iso(1),
+               reason="names payout platform: Algora", snippet="", platforms=[]) for n in range(20)]
+entries, shown_keys, hidden = discovery.group(many + others)
+assert len(entries) == discovery.MAX_RESULTS, len(entries)
+flood = next(e for e in entries if e["repo"] == "flood/repo")
+assert flood["count"] == 50 and len(flood["keys"]) == 50
+msg = discovery.format_message(entries, hidden)
+assert "+49 more issues in this repo" in msg
+assert msg.count(">flood/repo</a>") == 1, "one link entry per repo, not one per issue"
+ok("grouping: 50 issues from one repo collapse into a single entry")
+overflow_keys = {o["key"] for o in others[discovery.MAX_RESULTS - 1:]}
+assert hidden == 21 - discovery.MAX_RESULTS and not (overflow_keys & set(shown_keys))
+ok("grouping: repos beyond the message cap are NOT marked shown, so they arrive next run")
 
 # ---- file source
 import base64
@@ -201,7 +262,7 @@ assert [f["repo"] for f in files] == ["new/proj"], [f["repo"] for f in files]
 f = files[0]
 assert f["tier"] == "A" and ("GitHub Sponsors", False) in f["platforms"] and f["age_days"] == 20
 ok("discovery: file search keeps a real claim, drops idle/meta/no-claim repos")
-m = discovery.format_message(files)
+m = discovery.format_message(discovery.group(files)[0])
 assert "🆕" in m and "GitHub Sponsors" in m and "CONTRIBUTING.md" in m
 ok("discovery: new repos are flagged 🆕 and show the source file")
 
