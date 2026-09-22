@@ -2,9 +2,7 @@
 
 Sends Telegram alerts for two things, both run by GitHub Actions:
 
-1. **Watchlist** (every ~10 minutes): new open issues in repos you choose
-   (default: tscircuit). Issues that are already taken are hidden, so an alert
-   means there is still something you can grab.
+1. **Watchlist** (every ~10 minutes): new open issues in repos you choose. Issues that are already taken are hidden, so an alert means there is still something you can grab.
 2. **Discovery** (weekly, Mondays): issues and repo files elsewhere on GitHub
    that suggest paid work, ranked by how direct the evidence is.
 
