@@ -13,7 +13,7 @@ Edit `watchlist.json`:
 | Key | Meaning |
 |---|---|
 | `repos` | `owner/repo` list to watch |
-| `orgs` | Watch every active repo in these orgs, e.g. `["tscircuit"]` (see below) |
+| `orgs` | Watch every active repo in these orgs |
 | `org_repo_limit` | Max repos per org, most recently pushed first (default 30) |
 | `lookback_days` | Only issues created in this window (default 2) |
 | `max_comments` | Skip threads with more comments than this (default 25) |
