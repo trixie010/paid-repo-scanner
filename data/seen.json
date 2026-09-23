@@ -45,5 +45,7 @@
     "repo:node-opcua/node-opcua": "2026-09-22",
     "repo:unitystation/unitystation": "2026-09-22"
   },
-  "watchlist": {}
+  "watchlist": {
+    "tscircuit/core#4101": "2026-09-23"
+  }
 }
