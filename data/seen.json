@@ -197,6 +197,9 @@
     "tscircuit/circuit-to-svg#826": "2026-10-12",
     "tscircuit/cli#5275": "2026-10-11",
     "tscircuit/cli#5277": "2026-10-11",
+    "tscircuit/cli#5447": "2026-10-18",
+    "tscircuit/cli#5448": "2026-10-18",
+    "tscircuit/cli#5449": "2026-10-18",
     "tscircuit/core#4101": "2026-09-23",
     "tscircuit/core#4154": "2026-09-25",
     "tscircuit/core#4197": "2026-09-29",
@@ -217,7 +220,13 @@
     "tscircuit/core#4697": "2026-10-16",
     "tscircuit/core#4698": "2026-10-16",
     "tscircuit/core#4703": "2026-10-16",
+    "tscircuit/core#4772": "2026-10-18",
+    "tscircuit/core#4773": "2026-10-18",
+    "tscircuit/core#4774": "2026-10-18",
+    "tscircuit/core#4775": "2026-10-18",
     "tscircuit/footprinter#934": "2026-10-18",
+    "tscircuit/footprinter#936": "2026-10-18",
+    "tscircuit/footprinter#937": "2026-10-18",
     "tscircuit/tscircuit.com#5440": "2026-10-14"
   }
 }
