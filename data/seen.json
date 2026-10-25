@@ -272,6 +272,7 @@
   },
   "watchlist": {
     "tscircuit/circuit-to-svg#826": "2026-10-12",
+    "tscircuit/circuit-to-svg#876": "2026-10-25",
     "tscircuit/cli#5275": "2026-10-11",
     "tscircuit/cli#5277": "2026-10-11",
     "tscircuit/cli#5447": "2026-10-18",
@@ -303,6 +304,7 @@
     "tscircuit/core#4775": "2026-10-18",
     "tscircuit/core#4800": "2026-10-20",
     "tscircuit/core#4890": "2026-10-24",
+    "tscircuit/core#4913": "2026-10-25",
     "tscircuit/footprinter#934": "2026-10-18",
     "tscircuit/footprinter#936": "2026-10-18",
     "tscircuit/footprinter#937": "2026-10-18",
